@@ -1,28 +1,32 @@
-/****************************************************************************
+/**************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
+** This file is part of Qt Creator
 **
-** This file is part of Qt Creator.
+** Copyright (c) 2012 Nokia Corporation and/or its subsidiary(-ies).
 **
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
+** Contact: http://www.qt-project.org/
 **
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3 as published by the Free Software
-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-** included in the packaging of this file. Please review the following
-** information to ensure the GNU General Public License requirements will
-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
-****************************************************************************/
-
+** GNU Lesser General Public License Usage
+**
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this file.
+** Please review the following information to ensure the GNU Lesser General
+** Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Nokia gives you certain additional
+** rights. These rights are described in the Nokia Qt LGPL Exception
+** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+**
+** Other Usage
+**
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
+**
+**
+**************************************************************************/
 #include "sftpfilesystemmodel.h"
 
 #include "sftpchannel.h"
@@ -96,7 +100,7 @@ SftpFileSystemModel::SftpFileSystemModel(QObject *parent)
     : QAbstractItemModel(parent), d(new SftpFileSystemModelPrivate)
 {
     d->sshConnection = 0;
-    d->rootDirectory = QLatin1Char('/');
+    d->rootDirectory = QLatin1String("/");
     d->rootNode = 0;
     d->statJobId = SftpInvalidJob;
 }
@@ -110,15 +114,13 @@ SftpFileSystemModel::~SftpFileSystemModel()
 void SftpFileSystemModel::setSshConnection(const SshConnectionParameters &sshParams)
 {
     QSSH_ASSERT_AND_RETURN(!d->sshConnection);
-    d->sshConnection = QSsh::acquireConnection(sshParams);
-    connect(d->sshConnection, &SshConnection::error,
-            this, &SftpFileSystemModel::handleSshConnectionFailure);
+    d->sshConnection = SshConnectionManager::instance().acquireConnection(sshParams);
+    connect(d->sshConnection, SIGNAL(error(QSsh::SshError)), SLOT(handleSshConnectionFailure()));
     if (d->sshConnection->state() == SshConnection::Connected) {
         handleSshConnectionEstablished();
         return;
     }
-    connect(d->sshConnection, &SshConnection::connected,
-            this, &SftpFileSystemModel::handleSshConnectionEstablished);
+    connect(d->sshConnection, SIGNAL(connected()), SLOT(handleSshConnectionEstablished()));
     if (d->sshConnection->state() == SshConnection::Unconnected)
         d->sshConnection->connectToHost();
 }
@@ -166,11 +168,11 @@ QVariant SftpFileSystemModel::data(const QModelIndex &index, int role) const
         switch (node->fileInfo.type) {
         case FileTypeRegular:
         case FileTypeOther:
-            return QIcon(":/utils/images/unknownfile.png");
+            return QIcon(QLatin1String(":/core/images/unknownfile.png"));
         case FileTypeDirectory:
-            return QIcon(":/utils/images/dir.png");
+            return QIcon(QLatin1String(":/core/images/dir.png"));
         case FileTypeUnknown:
-            return QIcon(":/utils/images/help.png"); // Shows a question mark.
+            return QIcon(QLatin1String(":/core/images/help.png")); // Shows a question mark.
         }
     }
     if (index.column() == 1) {
@@ -266,7 +268,7 @@ void SftpFileSystemModel::shutDown()
     }
     if (d->sshConnection) {
         disconnect(d->sshConnection, 0, this, 0);
-        QSsh::releaseConnection(d->sshConnection);
+        SshConnectionManager::instance().releaseConnection(d->sshConnection);
         d->sshConnection = 0;
     }
     delete d->rootNode;
@@ -284,24 +286,23 @@ void SftpFileSystemModel::handleSshConnectionFailure()
 void SftpFileSystemModel::handleSftpChannelInitialized()
 {
     connect(d->sftpChannel.data(),
-        &SftpChannel::fileInfoAvailable,
-        this, &SftpFileSystemModel::handleFileInfo);
-    connect(d->sftpChannel.data(), &SftpChannel::finished,
-        this, &SftpFileSystemModel::handleSftpJobFinished);
+        SIGNAL(fileInfoAvailable(QSsh::SftpJobId,QList<QSsh::SftpFileInfo>)),
+        SLOT(handleFileInfo(QSsh::SftpJobId,QList<QSsh::SftpFileInfo>)));
+    connect(d->sftpChannel.data(), SIGNAL(finished(QSsh::SftpJobId,QString)),
+        SLOT(handleSftpJobFinished(QSsh::SftpJobId,QString)));
     statRootDirectory();
 }
 
 void SftpFileSystemModel::handleSshConnectionEstablished()
 {
     d->sftpChannel = d->sshConnection->createSftpChannel();
-    connect(d->sftpChannel.data(), &SftpChannel::initialized,
-            this, &SftpFileSystemModel::handleSftpChannelInitialized);
-    connect(d->sftpChannel.data(), &SftpChannel::channelError,
-            this, &SftpFileSystemModel::handleSftpChannelError);
+    connect(d->sftpChannel.data(), SIGNAL(initialized()), SLOT(handleSftpChannelInitialized()));
+    connect(d->sftpChannel.data(), SIGNAL(initializationFailed(QString)),
+        SLOT(handleSftpChannelInitializationFailed(QString)));
     d->sftpChannel->initialize();
 }
 
-void SftpFileSystemModel::handleSftpChannelError(const QString &reason)
+void SftpFileSystemModel::handleSftpChannelInitializationFailed(const QString &reason)
 {
     emit connectionError(reason);
     beginResetModel();
@@ -358,7 +359,7 @@ void SftpFileSystemModel::handleSftpJobFinished(SftpJobId jobId, const QString &
     if (jobId == d->statJobId) {
         d->statJobId = SftpInvalidJob;
         if (!errorMessage.isEmpty())
-            emit sftpOperationFailed(tr("Error getting \"stat\" info about \"%1\": %2")
+            emit sftpOperationFailed(tr("Error getting 'stat' info about '%1': %2")
                 .arg(rootDirectory(), errorMessage));
         return;
     }
@@ -368,7 +369,7 @@ void SftpFileSystemModel::handleSftpJobFinished(SftpJobId jobId, const QString &
         QSSH_ASSERT(it.value()->lsState == SftpDirNode::LsRunning);
         it.value()->lsState = SftpDirNode::LsFinished;
         if (!errorMessage.isEmpty())
-            emit sftpOperationFailed(tr("Error listing contents of directory \"%1\": %2")
+            emit sftpOperationFailed(tr("Error listing contents of directory '%1': %2")
                 .arg(it.value()->path, errorMessage));
         d->lsOps.erase(it);
         return;

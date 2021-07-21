@@ -1,37 +1,41 @@
-/****************************************************************************
+/**************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
+** This file is part of Qt Creator
 **
-** This file is part of Qt Creator.
+** Copyright (c) 2012 Nokia Corporation and/or its subsidiary(-ies).
 **
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
+** Contact: http://www.qt-project.org/
 **
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3 as published by the Free Software
-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-** included in the packaging of this file. Please review the following
-** information to ensure the GNU General Public License requirements will
-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
-****************************************************************************/
+** GNU Lesser General Public License Usage
+**
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this file.
+** Please review the following information to ensure the GNU Lesser General
+** Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Nokia gives you certain additional
+** rights. These rights are described in the Nokia Qt LGPL Exception
+** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+**
+** Other Usage
+**
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
+**
+**
+**************************************************************************/
 
-#pragma once
+#ifndef SSHCONNECTION_H
+#define SSHCONNECTION_H
 
 #include "ssherrors.h"
-#include "sshhostkeydatabase.h"
 
 #include "ssh_global.h"
 
 #include <QByteArray>
-#include <QFlags>
 #include <QObject>
 #include <QSharedPointer>
 #include <QString>
@@ -39,38 +43,17 @@
 
 namespace QSsh {
 class SftpChannel;
-class SshDirectTcpIpTunnel;
 class SshRemoteProcess;
-class SshTcpIpForwardServer;
 
-namespace Internal { class SshConnectionPrivate; }
-
-enum SshConnectionOption {
-    SshIgnoreDefaultProxy = 0x1,
-    SshEnableStrictConformanceChecks = 0x2
-};
-
-Q_DECLARE_FLAGS(SshConnectionOptions, SshConnectionOption)
-
-enum SshHostKeyCheckingMode {
-    SshHostKeyCheckingNone,
-    SshHostKeyCheckingStrict,
-    SshHostKeyCheckingAllowNoMatch,
-    SshHostKeyCheckingAllowMismatch
-};
+namespace Internal {
+class SshConnectionPrivate;
+} // namespace Internal
 
 class QSSH_EXPORT SshConnectionParameters
 {
 public:
-    enum AuthenticationType {
-        AuthenticationTypePassword,
-        AuthenticationTypePublicKey,
-        AuthenticationTypeKeyboardInteractive,
-
-        // Some servers disable "password", others disable "keyboard-interactive".
-        AuthenticationTypeTryAllPasswordBasedMethods
-    };
-
+    enum ProxyType { DefaultProxy, NoProxy };
+    enum AuthenticationType { AuthenticationByPassword, AuthenticationByKey };
     SshConnectionParameters();
 
     QString host;
@@ -80,9 +63,7 @@ public:
     int timeout; // In seconds.
     AuthenticationType authenticationType;
     quint16 port;
-    SshConnectionOptions options;
-    SshHostKeyCheckingMode hostKeyCheckingMode;
-    SshHostKeyDatabasePtr hostKeyDatabase;
+    ProxyType proxyType;
 };
 
 QSSH_EXPORT bool operator==(const SshConnectionParameters &p1, const SshConnectionParameters &p2);
@@ -122,10 +103,6 @@ public:
     QSharedPointer<SshRemoteProcess> createRemoteProcess(const QByteArray &command);
     QSharedPointer<SshRemoteProcess> createRemoteShell();
     QSharedPointer<SftpChannel> createSftpChannel();
-    QSharedPointer<SshDirectTcpIpTunnel> createDirectTunnel(const QString &originatingHost,
-            quint16 originatingPort, const QString &remoteHost, quint16 remotePort);
-    QSharedPointer<SshTcpIpForwardServer> createForwardServer(const QString &remoteHost,
-            quint16 remotePort);
 
     // -1 if an error occurred, number of channels closed otherwise.
     int closeAllChannels();
@@ -143,3 +120,5 @@ private:
 };
 
 } // namespace QSsh
+
+#endif // SSHCONNECTION_H

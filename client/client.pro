@@ -7,7 +7,6 @@ TEMPLATE = app
 DEFINES += QT_DEPRECATED_WARNINGS
 
 include("3rd/QtSsh/src/ssh/ssh.pri")
-include("3rd/QtSsh/src/botan/botan.pri")
 include("3rd/SingleApplication/singleapplication.pri")
 include("3rd/QRCodeGenerator/QRCodeGenerator.pri")
 
@@ -128,3 +127,7 @@ macx {
 
 REPC_REPLICA += ../ipc/ipcinterface.rep
 
+LIBS += -LC:/Botan/lib -lbotan
+
+INCLUDEPATH += C:/Botan/include/botan-2
+DEPENDPATH += C:/Botan/include/botan-2

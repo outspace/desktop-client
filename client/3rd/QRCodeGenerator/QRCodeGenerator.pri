@@ -1,5 +1,5 @@
 HEADERS  += \
-   3rd/QRCodeGenerator/QRCodeGenerator.h \
+   3rd/QRCodeGenerator/QRCodeGenerator.h
 
 SOURCES  += \
-   3rd/QRCodeGenerator/QRCodeGenerator.cpp \
+   3rd/QRCodeGenerator/QRCodeGenerator.cpp

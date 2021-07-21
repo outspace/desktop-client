@@ -1,56 +1,61 @@
-/****************************************************************************
+/**************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
+** This file is part of Qt Creator
 **
-** This file is part of Qt Creator.
+** Copyright (c) 2012 Nokia Corporation and/or its subsidiary(-ies).
 **
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
+** Contact: http://www.qt-project.org/
 **
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3 as published by the Free Software
-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-** included in the packaging of this file. Please review the following
-** information to ensure the GNU General Public License requirements will
-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
-****************************************************************************/
+** GNU Lesser General Public License Usage
+**
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this file.
+** Please review the following information to ensure the GNU Lesser General
+** Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Nokia gives you certain additional
+** rights. These rights are described in the Nokia Qt LGPL Exception
+** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+**
+** Other Usage
+**
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
+**
+**
+**************************************************************************/
 
 #include "sshchannel_p.h"
 
 #include "sshincomingpacket_p.h"
-#include "sshlogging_p.h"
 #include "sshsendfacility_p.h"
 
-#include <botan/botan.h>
+#include <botan/exceptn.h>
 
 #include <QTimer>
 
 namespace QSsh {
 namespace Internal {
 
-// "Payload length" (RFC 4253, 6.1), i.e. minus packet type, channel number
-// and length field for string.
-const quint32 MinMaxPacketSize = 32768 - sizeof(quint32) - sizeof(quint32) - 1;
-
-const quint32 NoChannel = 0xffffffffu;
+namespace {
+    const quint32 MinMaxPacketSize = 32768;
+    const quint32 MaxPacketSize = 16 * 1024 * 1024;
+    const quint32 InitialWindowSize = MaxPacketSize;
+    const quint32 NoChannel = 0xffffffffu;
+} // anonymous namespace
 
 AbstractSshChannel::AbstractSshChannel(quint32 channelId,
     SshSendFacility &sendFacility)
-    : m_sendFacility(sendFacility),
+    : m_sendFacility(sendFacility), m_timeoutTimer(new QTimer(this)),
       m_localChannel(channelId), m_remoteChannel(NoChannel),
-      m_localWindowSize(initialWindowSize()), m_remoteWindowSize(0),
+      m_localWindowSize(InitialWindowSize), m_remoteWindowSize(0),
       m_state(Inactive)
 {
-    m_timeoutTimer.setSingleShot(true);
-    connect(&m_timeoutTimer, &QTimer::timeout, this, &AbstractSshChannel::timeout);
+    m_timeoutTimer->setSingleShot(true);
+    connect(m_timeoutTimer, SIGNAL(timeout()), this, SIGNAL(timeout()));
 }
 
 AbstractSshChannel::~AbstractSshChannel()
@@ -72,11 +77,12 @@ void AbstractSshChannel::requestSessionStart()
     // with our cryptography stuff, it would have hit us before, on
     // establishing the connection.
     try {
-        m_sendFacility.sendSessionPacket(m_localChannel, initialWindowSize(), maxPacketSize());
+        m_sendFacility.sendSessionPacket(m_localChannel, InitialWindowSize,
+            MaxPacketSize);
         setChannelState(SessionRequested);
-        m_timeoutTimer.start(ReplyTimeout);
-    }  catch (const std::exception &e) {
-        qCWarning(sshLog, "Botan error: %s", e.what());
+        m_timeoutTimer->start(ReplyTimeout);
+    }  catch (Botan::Exception &e) {
+        qDebug("Botan error: %s", e.what());
         closeChannel();
     }
 }
@@ -86,20 +92,10 @@ void AbstractSshChannel::sendData(const QByteArray &data)
     try {
         m_sendBuffer += data;
         flushSendBuffer();
-    }  catch (const std::exception &e) {
-        qCWarning(sshLog, "Botan error: %s", e.what());
+    }  catch (Botan::Exception &e) {
+        qDebug("Botan error: %s", e.what());
         closeChannel();
     }
-}
-
-quint32 AbstractSshChannel::initialWindowSize()
-{
-    return maxPacketSize();
-}
-
-quint32 AbstractSshChannel::maxPacketSize()
-{
-    return 16 * 1024 * 1024;
 }
 
 void AbstractSshChannel::handleWindowAdjust(quint32 bytesToAdd)
@@ -133,51 +129,41 @@ void AbstractSshChannel::flushSendBuffer()
 void AbstractSshChannel::handleOpenSuccess(quint32 remoteChannelId,
     quint32 remoteWindowSize, quint32 remoteMaxPacketSize)
 {
-    const ChannelState oldState = m_state;
-    switch (oldState) {
-    case CloseRequested:   // closeChannel() was called while we were in SessionRequested state
-    case SessionRequested:
-        break; // Ok, continue.
-    default:
-        throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
-            "Unexpected SSH_MSG_CHANNEL_OPEN_CONFIRMATION packet.");
-    }
-
-    m_timeoutTimer.stop();
+    if (m_state != SessionRequested) {
+       throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
+           "Invalid SSH_MSG_CHANNEL_OPEN_CONFIRMATION packet.");
+   }
+    m_timeoutTimer->stop();
 
    if (remoteMaxPacketSize < MinMaxPacketSize) {
        throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
            "Maximum packet size too low.");
    }
 
-   qCDebug(sshLog, "Channel opened. remote channel id: %u, remote window size: %u, "
+#ifdef CREATOR_SSH_DEBUG
+   qDebug("Channel opened. remote channel id: %u, remote window size: %u, "
        "remote max packet size: %u",
        remoteChannelId, remoteWindowSize, remoteMaxPacketSize);
+#endif
    m_remoteChannel = remoteChannelId;
    m_remoteWindowSize = remoteWindowSize;
-   m_remoteMaxPacketSize = remoteMaxPacketSize;
+   m_remoteMaxPacketSize = remoteMaxPacketSize - sizeof(quint32) - sizeof m_remoteChannel - 1;
+        // Original value includes packet type, channel number and length field for string.
    setChannelState(SessionEstablished);
-   if (oldState == CloseRequested)
-       closeChannel();
-   else
-       handleOpenSuccessInternal();
+   handleOpenSuccessInternal();
 }
 
 void AbstractSshChannel::handleOpenFailure(const QString &reason)
 {
-    switch (m_state) {
-    case SessionRequested:
-        break; // Ok, continue.
-    case CloseRequested:
-        return; // Late server reply; we requested a channel close in the meantime.
-    default:
-        throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
-            "Unexpected SSH_MSG_CHANNEL_OPEN_FAILURE packet.");
-    }
+    if (m_state != SessionRequested) {
+       throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
+           "Invalid SSH_MSG_CHANNEL_OPEN_FAILURE packet.");
+   }
+    m_timeoutTimer->stop();
 
-    m_timeoutTimer.stop();
-
-   qCDebug(sshLog, "Channel open request failed for channel %u", m_localChannel);
+#ifdef CREATOR_SSH_DEBUG
+   qDebug("Channel open request failed for channel %u", m_localChannel);
+#endif
    handleOpenFailureInternal(reason);
 }
 
@@ -188,12 +174,13 @@ void AbstractSshChannel::handleChannelEof()
             "Unexpected SSH_MSG_CHANNEL_EOF message.");
     }
     m_localWindowSize = 0;
-    emit eof();
 }
 
 void AbstractSshChannel::handleChannelClose()
 {
-    qCDebug(sshLog, "Receiving CLOSE for channel %u", m_localChannel);
+#ifdef CREATOR_SSH_DEBUG
+    qDebug("Receiving CLOSE for channel %u", m_localChannel);
+#endif
     if (channelState() == Inactive || channelState() == Closed) {
         throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
             "Unexpected SSH_MSG_CHANNEL_CLOSE message.");
@@ -225,7 +212,7 @@ void AbstractSshChannel::handleChannelRequest(const SshIncomingPacket &packet)
     else if (requestType == SshIncomingPacket::ExitSignalType)
         handleExitSignal(packet.extractChannelExitSignal());
     else if (requestType != "eow@openssh.com") // Suppress warning for this one, as it's sent all the time.
-        qCWarning(sshLog, "Ignoring unknown request type '%s'", requestType.data());
+        qWarning("Ignoring unknown request type '%s'", requestType.data());
 }
 
 int AbstractSshChannel::handleChannelOrExtendedChannelData(const QByteArray &data)
@@ -234,12 +221,13 @@ int AbstractSshChannel::handleChannelOrExtendedChannelData(const QByteArray &dat
 
     const int bytesToDeliver = qMin<quint32>(data.size(), maxDataSize());
     if (bytesToDeliver != data.size())
-        qCWarning(sshLog, "Misbehaving server does not respect local window, clipping.");
+        qWarning("Misbehaving server does not respect local window, clipping.");
 
     m_localWindowSize -= bytesToDeliver;
-    if (m_localWindowSize < maxPacketSize()) {
-        m_localWindowSize += maxPacketSize();
-        m_sendFacility.sendWindowAdjustPacket(m_remoteChannel, maxPacketSize());
+    if (m_localWindowSize < MaxPacketSize) {
+        m_localWindowSize += MaxPacketSize;
+        m_sendFacility.sendWindowAdjustPacket(m_remoteChannel,
+            MaxPacketSize);
     }
     return bytesToDeliver;
 }
@@ -247,19 +235,14 @@ int AbstractSshChannel::handleChannelOrExtendedChannelData(const QByteArray &dat
 void AbstractSshChannel::closeChannel()
 {
     if (m_state == CloseRequested) {
-        m_timeoutTimer.stop();
+        m_timeoutTimer->stop();
     } else if (m_state != Closed) {
         if (m_state == Inactive) {
             setChannelState(Closed);
         } else {
-            const ChannelState oldState = m_state;
             setChannelState(CloseRequested);
-            if (m_remoteChannel != NoChannel) {
-                m_sendFacility.sendChannelEofPacket(m_remoteChannel);
-                m_sendFacility.sendChannelClosePacket(m_remoteChannel);
-            } else {
-                QSSH_ASSERT(oldState == SessionRequested);
-            }
+            m_sendFacility.sendChannelEofPacket(m_remoteChannel);
+            m_sendFacility.sendChannelClosePacket(m_remoteChannel);
         }
     }
 }
@@ -273,7 +256,7 @@ void AbstractSshChannel::checkChannelActive()
 
 quint32 AbstractSshChannel::maxDataSize() const
 {
-    return qMin(m_localWindowSize, maxPacketSize());
+    return qMin(m_localWindowSize, MaxPacketSize);
 }
 
 } // namespace Internal
