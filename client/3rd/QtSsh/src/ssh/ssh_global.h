@@ -33,6 +33,8 @@
 
 #include <QtGlobal>
 
+#define QSSH_LIBRARY
+
 #if defined(QSSH_LIBRARY)
 #  define QSSH_EXPORT Q_DECL_EXPORT
 #else

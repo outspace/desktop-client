@@ -7,6 +7,7 @@ TEMPLATE = app
 DEFINES += QT_DEPRECATED_WARNINGS
 
 include("3rd/QtSsh/src/ssh/ssh.pri")
+#include("3rd/QtSsh/src/botan/botan.pri")
 include("3rd/SingleApplication/singleapplication.pri")
 include("3rd/QRCodeGenerator/QRCodeGenerator.pri")
 
@@ -113,7 +114,8 @@ win32 {
         -liphlpapi \
         -lgdi32
 
-    #LIBS += -L$$PWD/../../../../../../../OpenSSL-Win32/lib/ -llibcrypto
+   CONFIG(release, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/ -lbotan
+   win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/ -lbotand
 }
 
 macx {
@@ -127,7 +129,5 @@ macx {
 
 REPC_REPLICA += ../ipc/ipcinterface.rep
 
-LIBS += -LC:/Botan/lib -lbotan
-
-INCLUDEPATH += C:/Botan/include/botan-2
-DEPENDPATH += C:/Botan/include/botan-2
+INCLUDEPATH += $$PWD/3rd/QtSsh/src/botan/include
+DEPENDPATH += $$PWD/3rd/QtSsh/src/botan/

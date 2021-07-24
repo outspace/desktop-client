@@ -42,6 +42,7 @@
 #include <botan/der_enc.h>
 #include <botan/pem.h>
 #include <botan/x509cert.h>
+#include <botan/x509_key.h>
 
 #include <QDateTime>
 #include <QInputDialog>
@@ -84,7 +85,7 @@ bool SshKeyGenerator::generateKeys(KeyType type, PrivateKeyFormat format, int ke
         }
         return true;
     } catch (Botan::Exception &e) {
-        m_error = tr("Error generating key: %1").arg(QString::fromAscii(e.what()));
+        m_error = tr("Error generating key: %1").arg(QString::fromLatin1(e.what()));
         return false;
     }
 }
