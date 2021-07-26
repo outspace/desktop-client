@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <string>
-#include <string.h> //for strlen on linux
 
 #ifdef _DEBUG
 #define new DEBUG_NEW

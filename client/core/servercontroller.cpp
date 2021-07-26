@@ -83,27 +83,27 @@ ErrorCode ServerController::runScript(const SshConnectionParameters &sshParams, 
         //            qDebug() << "Command started";
         //        });
 
-        QObject::connect(proc.data(), &SshRemoteProcess::closed, &wait, [&](int status){
+        QObject::connect(proc.data(), SIGNAL(&SshRemoteProcess::closed), &wait, SLOT([&](int status){
             exitStatus = status;
             //qDebug() << "Remote process exited with status" << status;
             wait.quit();
-        });
+        }));
 
-        QObject::connect(proc.data(), &SshRemoteProcess::readyReadStandardOutput, &wait, [proc, cbReadStdOut](){
+        QObject::connect(proc.data(), SIGNAL(&SshRemoteProcess::readyReadStandardOutput), &wait, SLOT([&](){
             QString s = proc->readAllStandardOutput();
             if (s != "." && !s.isEmpty()) {
                 qDebug().noquote() << "stdout" << s;
             }
             if (cbReadStdOut) cbReadStdOut(s, proc);
-        });
+        }));
 
-        QObject::connect(proc.data(), &SshRemoteProcess::readyReadStandardError, &wait, [proc, cbReadStdErr](){
+        QObject::connect(proc.data(), SIGNAL(&SshRemoteProcess::readyReadStandardError), &wait, SLOT([&](){
             QString s = proc->readAllStandardError();
             if (s != "." && !s.isEmpty()) {
                 qDebug().noquote() << "stderr" << s;
             }
             if (cbReadStdErr) cbReadStdErr(s, proc);
-        });
+        }));
 
         proc->start();
         if (i < lines.count() && exitStatus < 0) {
@@ -197,15 +197,15 @@ QString ServerController::getTextFileFromContainer(DockerContainer container,
     QEventLoop wait;
     int exitStatus = 0;
 
-    QObject::connect(proc.data(), &SshRemoteProcess::closed, &wait, [&](int status){
+    QObject::connect(proc.data(), SIGNAL(&SshRemoteProcess::closed), &wait, SLOT([&](int status){
         exitStatus = status;
         wait.quit();
-    });
+    }));
 
-    QObject::connect(proc.data(), &SshRemoteProcess::started, &wait, [&](){
+    QObject::connect(proc.data(), SIGNAL(&SshRemoteProcess::started), &wait, SLOT([&](){
         qDebug() << "ServerController::getTextFileFromContainer proc started";
         exitStatus = -1;
-    });
+    }));
 
     proc->start();
     wait.exec();
@@ -255,14 +255,14 @@ ErrorCode ServerController::uploadFileToHost(const ServerCredentials &credential
     QSharedPointer<SftpChannel> sftp = client->createSftpChannel();
     sftp->initialize();
 
-    QObject::connect(sftp.data(), &SftpChannel::initialized, &wait, [&](){
+    QObject::connect(sftp.data(), SIGNAL(&SftpChannel::initialized), &wait, SLOT([&](){
         timer.stop();
         wait.quit();
-    });
-    QObject::connect(&timer, &QTimer::timeout, &wait, [&](){
+    }));
+    QObject::connect(&timer, SIGNAL(&QTimer::timeout), &wait, SLOT([&](){
         err= true;
         wait.quit();
-    });
+    }));
 
     wait.exec();
 
@@ -277,18 +277,19 @@ ErrorCode ServerController::uploadFileToHost(const ServerCredentials &credential
     localFile.close();
 
     auto job = sftp->uploadFile(localFile.fileName(), remotePath, QSsh::SftpOverwriteMode::SftpOverwriteExisting);
-    QObject::connect(sftp.data(), &SftpChannel::finished, &wait, [&](QSsh::SftpJobId j, const QString &error){
+
+    QObject::connect(sftp.data(), SIGNAL(&SftpChannel::finished), &wait, SLOT([&](QSsh::SftpJobId j, const QString &error){
         if (job == j) {
             qDebug() << "Sftp finished with status" << error;
             wait.quit();
         }
-    });
+    }));
 
-    QObject::connect(sftp.data(), &SftpChannel::channelError, &wait, [&](const QString &reason){
+    QObject::connect(sftp.data(), SIGNAL(&SftpChannel::initializationFailed), &wait, SLOT([&](const QString &reason){
         qDebug() << "Sftp finished with error" << reason;
-        err= true;
+        err = true;
         wait.quit();
-    });
+    }));
 
     wait.exec();
 
@@ -331,19 +332,17 @@ SshConnectionParameters ServerController::sshParams(const ServerCredentials &cre
 {
     QSsh::SshConnectionParameters sshParams;
     if (credentials.password.contains("BEGIN") && credentials.password.contains("PRIVATE KEY")) {
-        sshParams.authenticationType = QSsh::SshConnectionParameters::AuthenticationTypePublicKey;
+        sshParams.authenticationType = QSsh::SshConnectionParameters::AuthenticationByKey;
         sshParams.privateKeyFile = credentials.password;
     }
     else {
-        sshParams.authenticationType = QSsh::SshConnectionParameters::AuthenticationTypePassword;
+        sshParams.authenticationType = QSsh::SshConnectionParameters::AuthenticationByPassword;
         sshParams.password = credentials.password;
     }
     sshParams.host = credentials.hostName;
     sshParams.userName = credentials.userName;
     sshParams.timeout = 10;
     sshParams.port = credentials.port;
-    sshParams.hostKeyCheckingMode = QSsh::SshHostKeyCheckingMode::SshHostKeyCheckingNone;
-    sshParams.options = SshIgnoreDefaultProxy;
 
     return sshParams;
 }
@@ -626,24 +625,24 @@ QString ServerController::checkSshConnection(const ServerCredentials &credential
 
 SshConnection *ServerController::connectToHost(const SshConnectionParameters &sshParams)
 {
-    SshConnection *client = acquireConnection(sshParams);
+    SshConnection *client = SshConnectionManager::instance().acquireConnection(sshParams);
     if (!client) return nullptr;
 
     QEventLoop waitssh;
-    QObject::connect(client, &SshConnection::connected, &waitssh, [&]() {
+    QObject::connect(client, SIGNAL(&SshConnection::connected), &waitssh, SLOT([&]() {
         qDebug() << "Server connected by ssh";
         waitssh.quit();
-    });
+    }));
 
-    QObject::connect(client, &SshConnection::disconnected, &waitssh, [&]() {
+    QObject::connect(client, SIGNAL(&SshConnection::disconnected), &waitssh, SLOT([&]() {
         qDebug() << "Server disconnected by ssh";
         waitssh.quit();
-    });
+    }));
 
-    QObject::connect(client, &SshConnection::error, &waitssh, [&](QSsh::SshError error) {
+    QObject::connect(client, SIGNAL(&SshConnection::error), &waitssh, SLOT([&](QSsh::SshError error) {
         qCritical() << "Ssh error:" << error << client->errorString();
         waitssh.quit();
-    });
+    }));
 
 
     //    QObject::connect(client, &SshConnection::dataAvailable, [&](const QString &message) {
@@ -680,7 +679,7 @@ SshConnection *ServerController::connectToHost(const SshConnectionParameters &ss
 
 void ServerController::disconnectFromHost(const ServerCredentials &credentials)
 {
-    SshConnection *client = acquireConnection(sshParams(credentials));
+    SshConnection *client = SshConnectionManager::instance().acquireConnection(sshParams(credentials));
     if (client) client->disconnectFromHost();
 }
 

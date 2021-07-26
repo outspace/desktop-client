@@ -1,29 +1,35 @@
-/****************************************************************************
+/**************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
+** This file is part of Qt Creator
 **
-** This file is part of Qt Creator.
+** Copyright (c) 2012 Nokia Corporation and/or its subsidiary(-ies).
 **
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
+** Contact: http://www.qt-project.org/
 **
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3 as published by the Free Software
-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-** included in the packaging of this file. Please review the following
-** information to ensure the GNU General Public License requirements will
-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
-****************************************************************************/
+** GNU Lesser General Public License Usage
+**
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this file.
+** Please review the following information to ensure the GNU Lesser General
+** Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Nokia gives you certain additional
+** rights. These rights are described in the Nokia Qt LGPL Exception
+** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+**
+** Other Usage
+**
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
+**
+**
+**************************************************************************/
 
-#pragma once
+#ifndef SFTCHANNEL_P_H
+#define SFTCHANNEL_P_H
 
 #include "sftpdefs.h"
 #include "sftpincomingpacket_p.h"
@@ -43,11 +49,17 @@ class SftpChannelPrivate : public AbstractSshChannel
     Q_OBJECT
     friend class QSsh::SftpChannel;
 public:
+
     enum SftpState { Inactive, SubsystemRequested, InitSent, Initialized };
+
+    virtual void handleChannelSuccess();
+    virtual void handleChannelFailure();
+
+    virtual void closeHook();
 
 signals:
     void initialized();
-    void channelError(const QString &reason);
+    void initializationFailed(const QString &reason);
     void closed();
     void finished(QSsh::SftpJobId job, const QString &error = QString());
     void dataAvailable(QSsh::SftpJobId job, const QString &data);
@@ -60,9 +72,6 @@ private:
         SftpChannel *sftp);
     SftpJobId createJob(const AbstractSftpOperation::Ptr &job);
 
-    virtual void handleChannelSuccess();
-    virtual void handleChannelFailure();
-
     virtual void handleOpenSuccessInternal();
     virtual void handleOpenFailureInternal(const QString &reason);
     virtual void handleChannelDataInternal(const QByteArray &data);
@@ -71,8 +80,6 @@ private:
     virtual void handleExitStatus(const SshChannelExitStatus &exitStatus);
     virtual void handleExitSignal(const SshChannelExitSignal &signal);
 
-    virtual void closeHook();
-
     void handleCurrentPacket();
     void handleServerVersion();
     void handleHandle();
@@ -80,6 +87,8 @@ private:
     void handleName();
     void handleReadData();
     void handleAttrs();
+
+    void handleDownloadDir(SftpListDir::Ptr op, const QList<SftpFileInfo> & fileInfoList);
 
     void handleStatusGeneric(const JobMap::Iterator &it,
         const SftpStatusResponse &response);
@@ -122,3 +131,5 @@ private:
 
 } // namespace Internal
 } // namespace QSsh
+
+#endif // SFTPCHANNEL_P_H
