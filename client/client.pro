@@ -113,9 +113,11 @@ win32 {
         -lws2_32 \
         -liphlpapi \
         -lgdi32
+   win32:CONFIG(release, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/windows_x64/Debug/ -lbotan
+   win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/windows_x64/Debug/ -lbotan
 
-   CONFIG(release, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/ -lbotan
-   win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/ -lbotand
+   unix:CONFIG(release, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/Release/ -lbotan
+   unix:CONFIG(debug, debug|release): LIBS += -L$$PWD/3rd/QtSsh/src/botan/lib/Debug/ -lbotan
 }
 
 macx {
