@@ -26,7 +26,7 @@ android {
          message( "ANDROID_TARGET_ARCH" $$abi)
          INCLUDEPATH += $$PWD/include/android/$${abi}
          LIBS += -L$$PWD/lib/android/$${abi} -lbotan-2
-         ANDROID_EXTRA_LIBS += $$PWD/lib/android/$${abi}/libbotan-2.so
       }
+      ANDROID_EXTRA_LIBS += $$PWD/lib/android/$${abi}/libbotan-2.so
    }
 }

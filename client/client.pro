@@ -3,6 +3,7 @@ QT += widgets core gui network xml remoteobjects quick
 TARGET = AmneziaVPN
 TEMPLATE = app
 #CONFIG += console
+CONFIG += c++17
 
 DEFINES += QT_DEPRECATED_WARNINGS
 
