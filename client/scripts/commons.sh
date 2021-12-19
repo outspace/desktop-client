@@ -45,7 +45,7 @@ WORKINGDIR=`pwd`
 compile_openvpn_adapter() {
   cd 3rd/OpenVPNAdapter
   
-  $XCODEBUILD -scheme OpenVPNAdapter -configuration Debug -xcconfig Configuration/amnezia.xcconfig -sdk iphoneos -destination 'generic/platform=iOS' -project OpenVPNAdapter.xcodeproj
+  $XCODEBUILD -scheme OpenVPNAdapter -configuration Release -xcconfig Configuration/amnezia.xcconfig -sdk iphoneos -destination 'generic/platform=iOS' -project OpenVPNAdapter.xcodeproj
   
   cd ../../
 }

@@ -207,7 +207,7 @@ fi
 
 if [ "$OS" = "ios" ]; then
   print Y "Prepare to build OpenVPNAdapter..."
-  prepare_to_build_vpn
+  #prepare_to_build_vpn
   print Y "Building OpenVPNAdapter..."
   compile_openvpn_adapter
 else
