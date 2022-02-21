@@ -47,6 +47,8 @@
 
 #ifdef Q_OS_ANDROID
 #include "platforms/android/android_controller.h"
+#include "QAndroidSharing.h"
+#include "QtAndroidTools.h"
 #endif
 
 #include "pages_logic/AppSettingsLogic.h"
@@ -608,22 +610,6 @@ PageEnumNS::Page UiLogic::currentPage()
 
 void UiLogic::saveTextFile(const QString& desc, const QString& suggestedName, QString ext, const QString& data)
 {
-//    ext.replace("*", "");
-//    QString fileName = QFileDialog::getSaveFileName(nullptr, desc,
-//        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), "*" + ext);
-
-//    if (fileName.isEmpty()) return;
-//    if (!fileName.endsWith(ext)) fileName.append(ext);
-
-//    QFile save(fileName);
-//    save.open(QIODevice::WriteOnly);
-//    save.write(data.toUtf8());
-//    save.close();
-
-//    QFileInfo fi(fileName);
-//    QDesktopServices::openUrl(fi.absoluteDir().absolutePath());
-
-
     ext.replace("*", "");
     QString docDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     QUrl fileName;
@@ -633,8 +619,21 @@ void UiLogic::saveTextFile(const QString& desc, const QString& suggestedName, QS
     if (fileName.isEmpty()) return;
     if (!fileName.toString().endsWith(ext)) fileName = QUrl(fileName.toString() + ext);
 #elif defined Q_OS_ANDROID
-    fileName = QFileDialog::getSaveFileUrl(nullptr, suggestedName,
-        QUrl::fromLocalFile(docDir), "*" + ext);
+
+    QFile file(QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/" + suggestedName);
+    file.open(QIODevice::WriteOnly);
+    qint64 b = file.write(data.toUtf8());
+    file.close();
+
+    qDebug() << "UiLogic::saveTextFile" << data.size() << b;
+
+    QAndroidSharing::qmlInstance(nullptr, nullptr);
+    QAndroidSharing::instance()->shareBinaryData("application/octet-stream", file.fileName());
+    qDebug() << "UiLogic::saveTextFile finished" << file.fileName();
+
+    // file.remove(); // TODO
+    return;
+
 #endif
 
     qDebug() << "UiLogic::saveTextFile" << fileName;

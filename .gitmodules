@@ -13,3 +13,6 @@
 [submodule "client/3rd/qzxing"]
 	path = client/3rd/qzxing
 	url = https://github.com/ftylitak/qzxing.git
+[submodule "client/3rd/QtAndroidTools"]
+	path = client/3rd/QtAndroidTools
+	url = https://github.com/FalsinSoft/QtAndroidTools.git

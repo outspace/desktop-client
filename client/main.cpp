@@ -53,6 +53,7 @@
 
 #if defined(Q_OS_ANDROID)
 #include "native.h"
+#include "QtAndroidTools.h"
 #endif
 
 static void loadTranslator()
@@ -93,6 +94,7 @@ int main(int argc, char *argv[])
 
 #if defined(Q_OS_ANDROID)
     NativeHelpers::registerApplicationInstance(&app);
+    QtAndroidTools::initializeQmlTools();
 #endif
 
     loadTranslator();

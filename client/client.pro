@@ -222,6 +222,16 @@ android {
    DEFINES += MVPN_ANDROID
 
    INCLUDEPATH += platforms/android
+   ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
+
+DEFINES += \
+    QTAT_APP_PERMISSIONS \
+    QTAT_IMAGES \
+    QTAT_NOTIFICATION \
+    QTAT_SHARING
+
+   include(3rd/QtAndroidTools/QtAndroidTools/QtAndroidTools.pri)
+
 
    HEADERS += \
       platforms/android/native.h \
@@ -250,7 +260,7 @@ android {
        android/src/org/amnezia/vpn/VpnServiceBinder.kt \
        android/src/org/amnezia/vpn/qt/VPNPermissionHelper.kt
 
-       ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
+
 
    for (abi, ANDROID_ABIS): {
       equals(ANDROID_TARGET_ARCH,$$abi) {
