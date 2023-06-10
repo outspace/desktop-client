@@ -262,7 +262,7 @@ jobs:
         arch: ['android_x86_64', 'android_x86'] #, 'android_armv7', 'android_arm64_v8a']
 
     env:
-      QT_VERSION: 6.5.0
+      QT_VERSION: 6.3.2
 
     steps:
     - name: 'Install desktop Qt'
