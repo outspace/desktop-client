@@ -243,6 +243,7 @@ jobs:
 
     - name: 'Build project'
       run: |
+        git submodule update --init --recursive
         export QT_BIN_DIR="${{ runner.temp }}/Qt/${{ env.QT_VERSION }}/macos/bin"
         export QIF_BIN_DIR="${{ runner.temp }}/Qt/Tools/QtInstallerFramework/${{ env.QIF_VERSION }}/bin"
         bash deploy/build_macos.sh
